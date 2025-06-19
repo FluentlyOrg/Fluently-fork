@@ -46,13 +46,8 @@ services:
 
   nginx:
     build:
-<<<<<<< HEAD
       context: ..
       dockerfile: backend/nginx-container/Dockerfile
-=======
-      context: .
-      dockerfile: swagger/Dockerfile
->>>>>>> upstream/main
     container_name: nginx
     ports:
       - "80:80"
@@ -60,11 +55,8 @@ services:
     depends_on:
       - app
     volumes:
-<<<<<<< HEAD
       - ./nginx-container/nginx.conf:/etc/nginx/conf.d/default.conf:ro
       - ./nginx-container/nginx-headers.conf:/etc/nginx/nginx-headers.conf:ro
-=======
->>>>>>> upstream/main
       - /etc/letsencrypt:/etc/letsencrypt
       - ./letsencrypt/webroot:/var/www/certbot
       - ../frontend-website:/usr/share/nginx/html/main-site

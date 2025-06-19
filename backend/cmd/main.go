@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	_ "fluently/go-backend/docs"
+
 	appConfig "fluently/go-backend/internal/config"
 	"fluently/go-backend/internal/repository/models"
 	"fluently/go-backend/internal/router"
@@ -29,6 +30,7 @@ import (
 // @license.url   https://opensource.org/licenses/MIT
 
 // @host      fluently-app.ru/swagger/index.html
+
 // @BasePath  /api/v1
 func main() {
 	appConfig.Init()
