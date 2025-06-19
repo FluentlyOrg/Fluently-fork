@@ -38,6 +38,12 @@ func InitRoutes(db *gorm.DB) http.Handler {
 	r.Get("/swagger/*", httpSwagger.WrapHandler)
 
 	r.Route("/api/v1", func(r chi.Router) {
+		authHandlers := &handlers.Handlers{
+			UserRepo:         postgres.NewUserRepository(db),
+			UserPrefRepo:     postgres.NewPreferenceRepository(db),
+			RefreshTokenRepo: postgres.NewRefreshTokenRepository(db),
+		}
+		routes.RegisterAuthRoutes(r, authHandlers)
 		routes.RegisterUserRoutes(r, &handlers.UserHandler{Repo: postgres.NewUserRepository(db)})
 		routes.RegisterWordRoutes(r, &handlers.WordHandler{Repo: postgres.NewWordRepository(db)})
 		routes.RegisterSentenceRoutes(r, &handlers.SentenceHandler{Repo: postgres.NewSentenceRepository(db)})

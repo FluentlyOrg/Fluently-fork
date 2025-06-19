@@ -23,8 +23,9 @@ import (
 
 // Handlers combines multiple repositories needed for authentication
 type Handlers struct {
-	UserRepo     *postgres.UserRepository
-	UserPrefRepo *postgres.PreferenceRepository
+	UserRepo         *postgres.UserRepository
+	UserPrefRepo     *postgres.PreferenceRepository
+	RefreshTokenRepo *postgres.RefreshTokenRepository
 }
 
 // GoogleAuthHandler godoc
@@ -150,10 +151,31 @@ func (h *Handlers) GoogleAuthHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Generate refresh token
+	refreshToken, err := utils.GenerateRefreshToken()
+	if err != nil {
+		logger.Log.Error("Failed to generate refresh token", zap.Error(err))
+		http.Error(w, "failed to generate refresh token", http.StatusInternalServerError)
+		return
+	}
+
+	refreshTokenModel := &models.RefreshToken{
+		ID:        uuid.New(),
+		UserID:    user.ID,
+		Token:     refreshToken,
+		ExpiresAt: time.Now().Add(30 * 24 * time.Hour),
+	}
+	if err := h.RefreshTokenRepo.Create(r.Context(), refreshTokenModel); err != nil {
+		logger.Log.Error("Failed to store refresh token", zap.Error(err))
+		http.Error(w, "failed to store refresh token", http.StatusInternalServerError)
+		return
+	}
+
 	resp := schemas.JwtResponse{
-		AccessToken: tokenString,
-		TokenType:   "Bearer",
-		ExpiresIn:   int64(config.GetConfig().Auth.JWTExpiration.Seconds()),
+		AccessToken:  tokenString,
+		RefreshToken: refreshToken,
+		TokenType:    "Bearer",
+		ExpiresIn:    int64(config.GetConfig().Auth.JWTExpiration.Seconds()),
 	}
 
 	w.WriteHeader(http.StatusOK)
@@ -198,10 +220,30 @@ func (h *Handlers) LoginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	refreshToken, err := utils.GenerateRefreshToken()
+	if err != nil {
+		logger.Log.Error("Failed to generate refresh token", zap.Error(err))
+		http.Error(w, "failed to generate refresh token", http.StatusInternalServerError)
+		return
+	}
+
+	refreshTokenModel := &models.RefreshToken{
+		ID:        uuid.New(),
+		UserID:    user.ID,
+		Token:     refreshToken,
+		ExpiresAt: time.Now().Add(30 * 24 * time.Hour),
+	}
+	if err := h.RefreshTokenRepo.Create(r.Context(), refreshTokenModel); err != nil {
+		logger.Log.Error("Failed to store refresh token", zap.Error(err))
+		http.Error(w, "failed to store refresh token", http.StatusInternalServerError)
+		return
+	}
+
 	resp := schemas.JwtResponse{
-		AccessToken: token,
-		TokenType:   "Bearer",
-		ExpiresIn:   int64(config.GetConfig().Auth.JWTExpiration.Seconds()),
+		AccessToken:  token,
+		RefreshToken: refreshToken,
+		TokenType:    "Bearer",
+		ExpiresIn:    int64(config.GetConfig().Auth.JWTExpiration.Seconds()),
 	}
 
 	json.NewEncoder(w).Encode(resp)
@@ -263,12 +305,105 @@ func (h *Handlers) RegisterHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	refreshToken, err := utils.GenerateRefreshToken()
+	if err != nil {
+		logger.Log.Error("Failed to generate refresh token", zap.Error(err))
+		http.Error(w, "failed to generate refresh token", http.StatusInternalServerError)
+		return
+	}
+
+	refreshTokenModel := &models.RefreshToken{
+		ID:        uuid.New(),
+		UserID:    user.ID,
+		Token:     refreshToken,
+		ExpiresAt: time.Now().Add(30 * 24 * time.Hour),
+	}
+	if err := h.RefreshTokenRepo.Create(r.Context(), refreshTokenModel); err != nil {
+		logger.Log.Error("Failed to store refresh token", zap.Error(err))
+		http.Error(w, "failed to store refresh token", http.StatusInternalServerError)
+		return
+	}
+
 	resp := schemas.JwtResponse{
-		AccessToken: token,
-		TokenType:   "Bearer",
-		ExpiresIn:   int64(config.GetConfig().Auth.JWTExpiration.Seconds()),
+		AccessToken:  token,
+		RefreshToken: refreshToken,
+		TokenType:    "Bearer",
+		ExpiresIn:    int64(config.GetConfig().Auth.JWTExpiration.Seconds()),
 	}
 
 	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(resp)
+}
+
+// RefreshTokenHandler godoc
+// @Summary      Refresh access token
+// @Description  Rotates refresh token and returns new access and refresh tokens
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        refreshToken body object true "Refresh Token"
+// @Success      200  {object}  schemas.JwtResponse
+// @Failure      400  {object}  schemas.ErrorResponse
+// @Failure      401  {object}  schemas.ErrorResponse
+// @Failure      500  {object}  schemas.ErrorResponse
+// @Router       /auth/refresh [post]
+func (h *Handlers) RefreshTokenHandler(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		RefreshToken string `json:"refresh_token"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request", http.StatusBadRequest)
+		return
+	}
+
+	rt, err := h.RefreshTokenRepo.GetByToken(r.Context(), req.RefreshToken)
+	if err != nil || rt.Revoked || rt.ExpiresAt.Before(time.Now()) {
+		http.Error(w, "invalid refresh token", http.StatusUnauthorized)
+		return
+	}
+
+	user, err := h.UserRepo.GetByID(r.Context(), rt.UserID)
+	if err != nil {
+		http.Error(w, "user not found", http.StatusUnauthorized)
+		return
+	}
+
+	// revoke old refresh token
+	if err := h.RefreshTokenRepo.Revoke(r.Context(), rt.ID); err != nil {
+		http.Error(w, "could not revoke token", http.StatusInternalServerError)
+		return
+	}
+
+	// issue new tokens
+	accessToken, err := utils.GenerateJWT(user)
+	if err != nil {
+		http.Error(w, "could not generate access token", http.StatusInternalServerError)
+		return
+	}
+
+	newRefreshToken, err := utils.GenerateRefreshToken()
+	if err != nil {
+		http.Error(w, "could not generate refresh token", http.StatusInternalServerError)
+		return
+	}
+
+	refreshTokenModel := &models.RefreshToken{
+		ID:        uuid.New(),
+		UserID:    user.ID,
+		Token:     newRefreshToken,
+		ExpiresAt: time.Now().Add(30 * 24 * time.Hour),
+	}
+	if err := h.RefreshTokenRepo.Create(r.Context(), refreshTokenModel); err != nil {
+		http.Error(w, "could not save refresh token", http.StatusInternalServerError)
+		return
+	}
+
+	resp := schemas.JwtResponse{
+		AccessToken:  accessToken,
+		RefreshToken: newRefreshToken,
+		TokenType:    "Bearer",
+		ExpiresIn:    int64(config.GetConfig().Auth.JWTExpiration.Seconds()),
+	}
+
 	json.NewEncoder(w).Encode(resp)
 }

@@ -6,6 +6,9 @@ import (
 	"fluently/go-backend/internal/config"
 	"fluently/go-backend/internal/repository/models"
 
+	"crypto/rand"
+	"encoding/base64"
+
 	"github.com/golang-jwt/jwt/v4"
 )
 
@@ -37,4 +40,12 @@ func GenerateJWT(user *models.User) (string, error) {
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return token.SignedString([]byte(cfg.Auth.JWTSecret))
+}
+
+func GenerateRefreshToken() (string, error) {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return base64.URLEncoding.EncodeToString(b), nil
 }
