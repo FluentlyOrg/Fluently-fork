@@ -86,7 +86,6 @@ func (r *LessonRepository) Delete(ctx context.Context, id uuid.UUID) error {
 func (r *LessonRepository) GetWordsForLesson(
 	ctx context.Context,
 	userID uuid.UUID,
-	topicTitle string,
 	cefrLevel string,
 	limit int,
 ) ([]models.Word, error) {
@@ -98,8 +97,6 @@ func (r *LessonRepository) GetWordsForLesson(
 		Where("user_id = ?", userID)
 
 	err := r.db.WithContext(ctx).
-		Joins("JOIN topics ON topics.id = words.topic_id").
-		Where("topics.title = ?", topicTitle).
 		Where("words.cefr_level = ?", cefrLevel).
 		Where("words.id NOT IN (?)", subQuery).
 		Limit(limit).

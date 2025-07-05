@@ -75,7 +75,6 @@ func (h *LessonHandler) GenerateLesson(w http.ResponseWriter, r *http.Request) {
 	words, err := h.Repo.GetWordsForLesson(
 		r.Context(),
 		userID,
-		userPref.Goal,
 		userPref.CEFRLevel,
 		lessonInfo.TotalWords,
 	)
@@ -159,11 +158,13 @@ func (h *LessonHandler) GenerateLesson(w http.ResponseWriter, r *http.Request) {
 
 		card.Exercise = exercise
 		cards = append(cards, card)
+		logger.Log.Info("Card generated", zap.Any("card", card))
 	}
 
 	var lesson schemas.LessonResponse
 	lesson.Lesson = lessonInfo
 	lesson.Cards = cards
+	logger.Log.Info("Lesson generated", zap.Any("lesson", lesson))
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)

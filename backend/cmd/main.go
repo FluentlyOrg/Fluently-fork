@@ -79,6 +79,7 @@ func main() {
 		&models.PickOption{},
 		&models.RefreshToken{},
 		&models.LearnedWords{},
+		&models.LinkToken{},
 	)
 	if err != nil {
 		logger.Log.Fatal("Failed to auto-migrate", zap.Error(err))
