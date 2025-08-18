@@ -36,7 +36,13 @@ EOF
 
 echo "✅ $ENVIRONMENT backup completed: $BACKUP_PATH"
 
-# Keep only last 7 days of backups
-find "$BACKUP_DIR" -name "fluently_backup_*" -type d -mtime +7 -exec rm -rf {} \;
+# Keep only last N days of backups depending on environment
+if [ "${ENVIRONMENT}" = "staging" ]; then
+  KEEP_DAYS=2
+else
+  KEEP_DAYS=5
+fi
 
-echo "🧹 Cleaned up old backups (kept last 7 days)"
+find "$BACKUP_DIR" -name "fluently_backup_*" -type d -mtime +${KEEP_DAYS} -exec rm -rf {} \;
+
+echo "🧹 Cleaned up old backups (kept last ${KEEP_DAYS} days)"
