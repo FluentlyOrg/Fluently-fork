@@ -14,6 +14,8 @@ type CreateWordRequest struct {
 	PartOfSpeech string  `json:"part_of_speech" binding:"required"`
 	Context      *string `json:"context"`
 	AudioURL     *string `json:"audio_url"`
+	TopicID      *string `json:"topic_id"`
+	Phonetic     *string `json:"phonetic"`
 }
 
 // WordResponse is a response for a word
@@ -25,4 +27,6 @@ type WordResponse struct {
 	PartOfSpeech string  `json:"part_of_speech"`
 	Context      *string `json:"context,omitempty"`
 	AudioURL     *string `json:"audio_url,omitempty"`
+	TopicID      *string `json:"topic_id,omitempty"`
+	Phonetic     *string `json:"phonetic,omitempty"`
 }

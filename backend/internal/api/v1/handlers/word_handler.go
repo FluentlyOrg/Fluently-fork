@@ -1,3 +1,4 @@
+// Package handlers provides handlers for the API endpoints.
 package handlers
 
 import (
@@ -41,6 +42,20 @@ func buildWordResponse(w *models.Word) schemas.WordResponse {
 
 	if w.AudioURL != "" {
 		resp.AudioURL = &w.AudioURL
+	}
+
+	if w.Phonetic != "" {
+		resp.Phonetic = &w.Phonetic
+	}
+
+	if w.TopicID != nil {
+		topicID, err := uuid.Parse(w.TopicID.String())
+		if err != nil {
+			resp.TopicID = nil
+		} else {
+			topicIDString := topicID.String()
+			resp.TopicID = &topicIDString
+		}
 	}
 
 	return resp
@@ -138,6 +153,20 @@ func (h *WordHandler) CreateWord(w http.ResponseWriter, r *http.Request) {
 		word.AudioURL = *req.AudioURL
 	}
 
+	if req.TopicID != nil {
+		topicID, err := uuid.Parse(*req.TopicID)
+		if err != nil {
+			statusCode = 400
+			http.Error(w, "invalid topic id", http.StatusBadRequest)
+			return
+		}
+		word.TopicID = &topicID
+	}
+
+	if req.Phonetic != nil {
+		word.Phonetic = *req.Phonetic
+	}
+
 	if err := h.Repo.Create(r.Context(), &word); err != nil {
 		statusCode = 500
 		http.Error(w, "failed to create word", http.StatusInternalServerError)
@@ -152,6 +181,8 @@ func (h *WordHandler) CreateWord(w http.ResponseWriter, r *http.Request) {
 		Translation:  req.Translation,
 		Context:      req.Context,
 		AudioURL:     req.AudioURL,
+		TopicID:      req.TopicID,
+		Phonetic:     req.Phonetic,
 	}
 
 	// Return the created word
@@ -213,6 +244,24 @@ func (h *WordHandler) UpdateWord(w http.ResponseWriter, r *http.Request) {
 		word.AudioURL = ""
 	}
 
+	if req.TopicID != nil {
+		topicID, err := uuid.Parse(*req.TopicID)
+		if err != nil {
+			statusCode = 400
+			http.Error(w, "invalid topic id", http.StatusBadRequest)
+			return
+		}
+		word.TopicID = &topicID
+	} else {
+		word.TopicID = nil
+	}
+
+	if req.Phonetic != nil {
+		word.Phonetic = *req.Phonetic
+	} else {
+		word.Phonetic = ""
+	}
+
 	if err := h.Repo.Update(r.Context(), word); err != nil {
 		statusCode = 500
 		http.Error(w, "failed to update word", http.StatusInternalServerError)
@@ -227,6 +276,8 @@ func (h *WordHandler) UpdateWord(w http.ResponseWriter, r *http.Request) {
 		Translation:  req.Translation,
 		Context:      req.Context,
 		AudioURL:     req.AudioURL,
+		TopicID:      req.TopicID,
+		Phonetic:     req.Phonetic,
 	}
 
 	// Return the updated word

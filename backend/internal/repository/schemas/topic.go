@@ -17,3 +17,10 @@ type TopicResponse struct {
 type TopicTitleResponse struct {
 	Title string `json:"title"`
 }
+
+// FullTopicTreeResponse is a recursive response for a topic and its subtopics
+type FullTopicTreeResponse struct {
+	ID       string                  `json:"id"`
+	Title    string                  `json:"title"`
+	Subtopic []FullTopicTreeResponse `json:"subtopic,omitempty"`
+}

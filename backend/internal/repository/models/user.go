@@ -21,6 +21,9 @@ type User struct {
 	CreatedAt    time.Time `gorm:"autoCreateTime"`
 
 	Pref *Preference `gorm:"foreignKey:UserID;constraint:OnUpdate:CASCADE,OnDelete: SET NULL"` // One-to-one relationship
+	
+	// Favorite collections
+	FavoriteCollections []UserCollectionFavorite `gorm:"foreignKey:UserID;constraint:OnDelete:CASCADE"`
 }
 
 // TableName returns the table name for User

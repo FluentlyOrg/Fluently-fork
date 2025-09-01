@@ -10,6 +10,9 @@ import (
 	"fluently/go-backend/internal/repository/postgres"
 	"fluently/go-backend/internal/repository/schemas"
 	"fluently/go-backend/internal/utils"
+	"fluently/go-backend/pkg/logger"
+
+	"go.uber.org/zap"
 
 	"github.com/google/uuid"
 )
@@ -24,6 +27,20 @@ func buildTopicResponse(topic *models.Topic) schemas.TopicResponse {
 	return schemas.TopicResponse{
 		ID:    topic.ID.String(),
 		Title: topic.Title,
+	}
+}
+
+// sortSubtopicTree recursively sorts subtopics by title for consistent ordering
+func sortSubtopicTree(topic *schemas.FullTopicTreeResponse) {
+	// Sort current level subtopics
+	for i := 0; i < len(topic.Subtopic); i++ {
+		for j := i + 1; j < len(topic.Subtopic); j++ {
+			if topic.Subtopic[i].Title > topic.Subtopic[j].Title {
+				topic.Subtopic[i], topic.Subtopic[j] = topic.Subtopic[j], topic.Subtopic[i]
+			}
+		}
+		// Recursively sort subtopics of subtopics
+		sortSubtopicTree(&topic.Subtopic[i])
 	}
 }
 
@@ -275,4 +292,84 @@ func (h *TopicHandler) GetTopics(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(resp)
+}
+
+// GetFullTopicsTrees returns all topics in a tree structure
+func (h *TopicHandler) GetFullTopicsTrees(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	endpoint := "/api/v1/topics/full-trees"
+	method := r.Method
+	statusCode := 200
+	defer func() {
+		httpRequestsTotal.WithLabelValues(method, endpoint, strconv.Itoa(statusCode)).Inc()
+		httpRequestDuration.WithLabelValues(method, endpoint).Observe(time.Since(start).Seconds())
+	}()
+
+	topics, err := h.Repo.GetAll(r.Context())
+	if err != nil {
+		statusCode = 500
+		// Log the actual error for debugging
+		logger.Log.Error("Error fetching topics", zap.Error(err))
+		http.Error(w, "failed to fetch topics", http.StatusInternalServerError)
+		return
+	}
+
+	// Log the number of topics found for debugging
+	logger.Log.Info("Found topics", zap.Int("count", len(topics)))
+
+	// Build tree structure using recursive approach
+	topicMap := make(map[uuid.UUID]*models.Topic)
+	for _, topic := range topics {
+		topicMap[topic.ID] = &topic
+	}
+
+	// Build the tree recursively
+	var buildTree func(topicID uuid.UUID) *schemas.FullTopicTreeResponse
+	buildTree = func(topicID uuid.UUID) *schemas.FullTopicTreeResponse {
+		topic := topicMap[topicID]
+		if topic == nil {
+			return nil
+		}
+
+		node := &schemas.FullTopicTreeResponse{
+			ID:       topic.ID.String(),
+			Title:    topic.Title,
+			Subtopic: []schemas.FullTopicTreeResponse{},
+		}
+
+		// Find all children of this topic
+		for _, t := range topics {
+			if t.ParentID != nil && *t.ParentID == topicID {
+				childNode := buildTree(t.ID)
+				if childNode != nil {
+					node.Subtopic = append(node.Subtopic, *childNode)
+				}
+			}
+		}
+
+		return node
+	}
+
+	// Find root topics and build their trees
+	var fullTopicTrees []schemas.FullTopicTreeResponse
+	for _, topic := range topics {
+		if topic.ParentID == nil {
+			rootTree := buildTree(topic.ID)
+			if rootTree != nil {
+				fullTopicTrees = append(fullTopicTrees, *rootTree)
+			}
+		}
+	}
+
+	// Debug: Log the structure to see what's happening
+	logger.Log.Info("Topic tree structure", zap.Any("fullTopicTrees", fullTopicTrees))
+
+	// Sort subtopics to ensure consistent ordering
+	for i := range fullTopicTrees {
+		sortSubtopicTree(&fullTopicTrees[i])
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(fullTopicTrees)
 }

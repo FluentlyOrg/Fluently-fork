@@ -11,6 +11,7 @@ func RegisterTopicRoutes(r chi.Router, h *handler.TopicHandler) {
 	r.Route("/topics", func(r chi.Router) {
 		r.Post("/", h.CreateTopic)
 		r.Get("/", h.GetTopics)
+		r.Get("/full-trees", h.GetFullTopicsTrees)
 		r.Get("/{id}", h.GetTopic)
 		r.Get("/root-topic/{id}", h.GetMainTopic)
 		r.Get("/path-to-root/{id}", h.GetPathToMainTopic)

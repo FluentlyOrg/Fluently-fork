@@ -5,23 +5,22 @@ services:
   
   # Main Backend API
   backend:
-    image: docker.io/fluentlyorg/fluently-backend:latest-develop
-    # build:
-    #   context: ./backend
-    #   dockerfile: Dockerfile
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
     container_name: fluently_backend
     env_file: .env
     depends_on:
       postgres:
         condition: service_healthy
-      ml-api:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      thesaurus-api:
-        condition: service_healthy
-      llm-api:
-        condition: service_healthy
+      # ml-api:
+      #   condition: service_healthy
+      # redis:
+      #   condition: service_healthy
+      # thesaurus-api:
+      #   condition: service_healthy
+      # llm-api:
+      #   condition: service_healthy
     restart: unless-stopped
     networks:
       - fluently_network
@@ -87,116 +86,54 @@ services:
   # APPLICATION SERVICES
   # ===========================================
   
-  # Telegram Bot
-  telegram-bot:
-    image: docker.io/fluentlyorg/fluently-telegram-bot:latest-develop
-    container_name: fluently_telegram_bot
-    restart: unless-stopped
-    env_file: .env  # Use root .env file instead of telegram-bot/.env
-    environment:
-      # Override Redis connection for Docker network
-      - REDIS_ADDR=redis:6379
-      - WEBHOOK_HOST=0.0.0.0
-      - WEBHOOK_PORT=8060
-      - WEBHOOK_PATH=/webhook
-    depends_on:
-      - redis
-      - backend
-    networks:
-      - fluently_network
-    # Bot webhook endpoint for NGINX to proxy to
-    ports:
-      - "127.0.0.1:8060:8060"  # Local access for NGINX proxy
+  # # Telegram Bot
+  # telegram-bot:
+  #   image: docker.io/fluentlyorg/fluently-telegram-bot:latest-develop
+  #   container_name: fluently_telegram_bot
+  #   restart: unless-stopped
+  #   env_file: .env  # Use root .env file instead of telegram-bot/.env
+  #   environment:
+  #     # Override Redis connection for Docker network
+  #     - REDIS_ADDR=redis:6379
+  #     - WEBHOOK_HOST=0.0.0.0
+  #     - WEBHOOK_PORT=8060
+  #     - WEBHOOK_PATH=/webhook
+  #   depends_on:
+  #     - redis
+  #     - backend
+  #   networks:
+  #     - fluently_network
+  #   # Bot webhook endpoint for NGINX to proxy to
+  #   ports:
+  #     - "127.0.0.1:8060:8060"  # Local access for NGINX proxy
 
-  # ML Distractor API (Internal only)
-  ml-api:
-    image: docker.io/fluentlyorg/fluently-ml-api:latest-develop
-    container_name: fluently_ml_api
-    environment:
-      - PYTHONUNBUFFERED=1
-      - PYTHONPATH=/app
-    volumes:
-      # Shared model cache
-      - fluently_model_cache:/app/.cache/huggingface
-      # Service-specific logs
-      - ./analysis/distractor_api/logs:/app/logs
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
-      interval: 5s
-      timeout: 5s
-      retries: 25
-      start_period: 5s
-    restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: 4G
-        reservations:
-          memory: 2G
-    networks:
-      - fluently_network
-    ports:
-      - "127.0.0.1:8001:8001"  # Local access for debugging
-
-  # Thesaurus API for vocabulary recommendations (Built from Dockerfile)
-  thesaurus-api:
-    build:
-      context: ./analysis/thesaurus
-      dockerfile: Dockerfile
-    container_name: fluently_thesaurus
-    environment:
-      - PYTHONUNBUFFERED=1
-      - PYTHONPATH=/app
-      - THESAURUS_ALLOWED_ORIGINS=${THESAURUS_ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:8070}
-    env_file: .env  # Use root .env file
-    volumes:
-      # Mount the thesaurus data file
-      - ./analysis/thesaurus/result.csv:/app/result.csv:ro
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8002/health", "-d", '{"ping":"test"}', "-H", "Content-Type: application/json"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
-    restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: 1G
-        reservations:
-          memory: 512M
-    networks:
-      - fluently_network
-    ports:
-      - "127.0.0.1:8002:8002"  # Local access for debugging
-
-  # LLM API for AI-powered conversations (Built from Dockerfile)
-  llm-api:
-    build:
-      context: ./analysis/llms
-      dockerfile: Dockerfile
-    container_name: fluently_llm_api
-    environment:
-      - PYTHONUNBUFFERED=1
-      - PYTHONPATH=/app
-    env_file: .env  # Use root .env file
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
-    restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: 1G
-        reservations:
-          memory: 512M
-    networks:
-      - fluently_network
-    ports:
-      - "127.0.0.1:8003:8003"  # Local access for debugging
+  # # LLM API for AI-powered conversations (Built from Dockerfile)
+  # llm-api:
+  #   build:
+  #     context: ./analysis/llms
+  #     dockerfile: Dockerfile
+  #   container_name: fluently_llm_api
+  #   environment:
+  #     - PYTHONUNBUFFERED=1
+  #     - PYTHONPATH=/app
+  #   env_file: .env  # Use root .env file
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 3
+  #     start_period: 10s
+  #   restart: unless-stopped
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         memory: 1G
+  #       reservations:
+  #         memory: 512M
+  #   networks:
+  #     - fluently_network
+  #   ports:
+  #     - "127.0.0.1:8003:8003"  # Local access for debugging
 
 
   # ===========================================
